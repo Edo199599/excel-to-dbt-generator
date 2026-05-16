@@ -11,7 +11,6 @@ EXPECTED_HEADER_KEYWORDS = {
 
 EXPECTED_MAPPING_COLUMNS = {
     "ID",
-    "SCD",
     "PK",
     "NOME CAMPO",
     "ESPRESSIONE",
@@ -26,6 +25,10 @@ EXPECTED_MAPPING_COLUMNS = {
     "DESCRIZIONE FUNZIONALE",
     "FORMATO.1",
     "PK.1",
+}
+
+DIMENSION_ONLY_COLUMNS = {
+    "SCD",
 }
 
 ALIAS_COLUMNS = {
@@ -110,6 +113,34 @@ def find_header_row(preview_df: pd.DataFrame) -> int | None:
 
     return None
 
+
+def extract_metadata(preview_df: pd.DataFrame, header_row: int | None) -> dict:
+    """
+    Extract key-value metadata from rows above the detected header row.
+    """
+    if header_row is None:
+        return {}
+
+    metadata_rows = preview_df.iloc[:header_row]
+
+    metadata = {}
+
+    for _, row in metadata_rows.iterrows():
+        non_empty_values = [
+            value
+            for value in row.tolist()
+            if pd.notna(value)
+        ]
+
+        if len(non_empty_values) >= 2:
+            key = str(non_empty_values[-2]).strip()
+            value = str(non_empty_values[-1]).strip()
+
+            metadata[key] = value
+
+    return metadata
+
+
 def is_candidate_sheet(header_row: int | None) -> bool:
     """
     Decide if a sheet looks like a technical/mapping sheet.
@@ -152,7 +183,7 @@ def clean_columns(df: pd.DataFrame) -> pd.DataFrame:
     return cleaned_df.dropna(how="all")
 
 
-def inspect_columns(df: pd.DataFrame) -> dict:
+def inspect_columns(df: pd.DataFrame, sheet_name: str) -> dict:
     """
     Compare detected columns with expected, alias, ignored and unknown columns.
     """
@@ -161,12 +192,18 @@ def inspect_columns(df: pd.DataFrame) -> dict:
         for column in df.columns
     }
 
+    expected_columns = set(EXPECTED_MAPPING_COLUMNS)
+
+    #aggiungo solo per le dim la chiave di SCD
+    if sheet_name.upper().startswith("DIM_"):
+        expected_columns = expected_columns.union(DIMENSION_ONLY_COLUMNS) 
+
     present_columns = sorted(
-        EXPECTED_MAPPING_COLUMNS.intersection(detected_columns)
+        expected_columns.intersection(detected_columns)
     )
 
     missing_columns = sorted(
-        EXPECTED_MAPPING_COLUMNS.difference(detected_columns)
+        expected_columns.difference(detected_columns)
     )
 
     present_aliases = {}
@@ -184,7 +221,7 @@ def inspect_columns(df: pd.DataFrame) -> dict:
     )
 
     known_columns = (
-        EXPECTED_MAPPING_COLUMNS
+        expected_columns
         .union(IGNORED_COLUMNS)
         .union(all_alias_columns)
     )
@@ -202,6 +239,37 @@ def inspect_columns(df: pd.DataFrame) -> dict:
     }
 
 
+def build_column_warnings(sheet_name: str, column_inspection: dict) -> list[dict]:
+    """
+    Build basic structured warnings from column inspection results.
+    """
+    warnings = []
+
+    for column in column_inspection["missing_columns"]:
+        warnings.append(
+            {
+                "code": "MISSING_EXPECTED_COLUMN",
+                "severity": "warning",
+                "sheet": sheet_name,
+                "column": column,
+                "message": f"Expected column is missing: {column}",
+            }
+        )
+
+    for column in column_inspection["unknown_columns"]:
+        warnings.append(
+            {
+                "code": "UNKNOWN_COLUMN",
+                "severity": "warning",
+                "sheet": sheet_name,
+                "column": column,
+                "message": f"Unknown column detected: {column}",
+            }
+        )
+
+    return warnings
+
+
 def inspect_sheet(excel_path: str, sheet_name: str) -> dict:
     """
     Inspect a single sheet and return structured information.
@@ -211,6 +279,7 @@ def inspect_sheet(excel_path: str, sheet_name: str) -> dict:
 
     header_row = find_header_row(preview)
     candidate = is_candidate_sheet(header_row)
+    metadata = extract_metadata(preview, header_row)
 
     inspection = {
         "sheet_name": sheet_name,
@@ -218,7 +287,9 @@ def inspect_sheet(excel_path: str, sheet_name: str) -> dict:
         "columns": shape_info["columns"],
         "header_row": header_row,
         "is_candidate": candidate,
+        "metadata": metadata,
         "column_inspection": None,
+        "warnings": [],
     }
 
     if not candidate:
@@ -231,8 +302,16 @@ def inspect_sheet(excel_path: str, sheet_name: str) -> dict:
     )
 
     clean_df = clean_columns(df)
+
     inspection["rows_after_cleaning"] = len(clean_df)
-    inspection["column_inspection"] = inspect_columns(clean_df)
+    inspection["column_inspection"] = inspect_columns(
+        df=clean_df,
+        sheet_name=sheet_name,
+    )
+    inspection["warnings"] = build_column_warnings(
+        sheet_name=sheet_name,
+        column_inspection=inspection["column_inspection"],
+    )
 
     return inspection
 
@@ -261,6 +340,9 @@ if __name__ == "__main__":
         print(f"Columns: {inspection['columns']}")
         print(f"Detected header row: {inspection['header_row']}")
         print(f"Candidate sheet: {inspection['is_candidate']}")
+        print("Metadata:")
+        for key, value in inspection["metadata"].items():
+            print(f"- {key}: {value}")
 
         if inspection["is_candidate"]:
             print(f"Rows after cleaning: {inspection['rows_after_cleaning']}")
@@ -282,3 +364,7 @@ if __name__ == "__main__":
             print("Unknown columns:")
             for column in column_inspection["unknown_columns"]:
                 print(f"- {column}")
+
+            print("Warnings:")
+            for warning in inspection["warnings"]:
+                print(f"- [{warning['severity']}] {warning['code']}: {warning['message']}")
