@@ -63,6 +63,22 @@ def inspect_sheet_shape(excel_path: str, sheet_name: str) -> dict:
         "columns": df.shape[1],
     }
 
+def inspect_workbook(excel_path: str) -> list[dict]:
+    """
+    Inspect all sheets in a workbook.
+
+    This is mainly useful for discovery.
+    Generation should usually work on one selected sheet.
+    """
+    sheet_names = list_sheet_names(excel_path)
+
+    inspections = []
+
+    for sheet_name in sheet_names:
+        sheet_inspection = inspect_sheet(excel_path, sheet_name)
+        inspections.append(sheet_inspection)
+
+    return inspections
 
 def preview_sheet(excel_path: str, sheet_name: str, n_rows: int = 8) -> pd.DataFrame:
     """
@@ -221,16 +237,25 @@ def inspect_sheet(excel_path: str, sheet_name: str) -> dict:
     return inspection
 
 
-
-
 if __name__ == "__main__":
     excel_path = "input/tracciato_prova_SC.xlsx"
 
-    sheet_names = list_sheet_names(excel_path)
+    # Set this to a sheet name if you want to inspect only one sheet.
+    # Set it to None if you want to inspect the whole workbook.
+    selected_sheet_name = None
+    # selected_sheet_name = None
 
-    for sheet_name in sheet_names:
-        inspection = inspect_sheet(excel_path, sheet_name)
+    if selected_sheet_name:
+        inspections = [
+            inspect_sheet(
+                excel_path=excel_path,
+                sheet_name=selected_sheet_name,
+            )
+        ]
+    else:
+        inspections = inspect_workbook(excel_path)
 
+    for inspection in inspections:
         print(f"\n--- {inspection['sheet_name']} ---")
         print(f"Rows: {inspection['rows']}")
         print(f"Columns: {inspection['columns']}")
