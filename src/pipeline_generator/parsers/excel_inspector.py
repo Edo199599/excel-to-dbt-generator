@@ -9,7 +9,7 @@ EXPECTED_HEADER_KEYWORDS = {
     "IMPORTARE",
 }
 
-EXPECTED_MAPPING_COLUMNS = {
+STANDARD_MAPPING_COLUMNS = {
     "ID",
     "PK",
     "NOME CAMPO",
@@ -192,7 +192,7 @@ def inspect_columns(df: pd.DataFrame, sheet_name: str) -> dict:
         for column in df.columns
     }
 
-    expected_columns = set(EXPECTED_MAPPING_COLUMNS)
+    expected_columns = set(STANDARD_MAPPING_COLUMNS)
 
     #aggiungo solo per le dim la chiave di SCD
     if sheet_name.upper().startswith("DIM_"):
