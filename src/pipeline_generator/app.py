@@ -8,6 +8,29 @@ from reports.inspection_report import (
     save_text_report,
 )
 
+import shitil
+from pathlib import Path
+
+
+
+def reset_generated_dir(output_dir: str) -> None:
+    """
+    Remove and recreate the generated output directory.
+
+    This avoids keeping stale files from previous runs.
+    """
+    path = Path(output_dir)
+
+    if path.name != "generated":
+        raise ValueError(
+            f"Refusing to delete non-generated directory: {path}"
+        )
+
+    if path.exists():
+        shutil.rmtree(path)
+
+    path.mkdir(parents=True, exist_ok=True)
+
 
 def print_inspection(inspection: dict) -> None:
     """
