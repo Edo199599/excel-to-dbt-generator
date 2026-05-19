@@ -8,9 +8,11 @@ from reports.inspection_report import (
     save_text_report,
 )
 
-import shitil
+import shutil
 from pathlib import Path
+import argparse
 
+OUTPUT_DIR = "generated"
 
 
 def reset_generated_dir(output_dir: str) -> None:
@@ -74,13 +76,35 @@ def print_inspection(inspection: dict) -> None:
         print(f"- [{warning['severity']}] {warning['code']}: {warning['message']}")
 
 
-if __name__ == "__main__":
-    excel_path = "input/tracciato_prova_SC.xlsx"
+def parse_args() -> argparse.Namespace:
+    """
+    Parse command line arguments for the inspection command.
+    """
+    parser = argparse.ArgumentParser(
+        description="Inspect Excel technical specifications."
+    )
+    parser.add_argument(
+        "--excel",
+        required=True,
+        help="Path to the Excel specification file.",
+    )
+    parser.add_argument(
+        "--sheet",
+        required=False,
+        default=None,
+        help="Optional sheet name to inspect. If omitted, all sheets are inspected.",
+    )
+    return parser.parse_args()
 
-    # Set this to a sheet name to inspect only one sheet.
-    # Set it to None to inspect the whole workbook.
-    selected_sheet_name = None
-    # selected_sheet_name = None
+
+if __name__ == "__main__":
+
+    args = parse_args()
+    excel_path = args.excel
+    selected_sheet_name = args.sheet
+    output_dir = OUTPUT_DIR
+
+    reset_generated_dir(output_dir)
 
     if selected_sheet_name:
         inspections = [
@@ -94,12 +118,18 @@ if __name__ == "__main__":
 
     for inspection in inspections:
         print_inspection(inspection)
+    
+    for inspection in inspections:
+        sheet_name = inspection["sheet_name"]
 
-    report_text = build_inspection_report(inspections)
+        report_text = build_inspection_report([inspection])
 
-    save_text_report(
-        report_text=report_text,
-        output_path="generated/inspection_report.md",
-    )
+        save_text_report(
+            report_text=report_text,
+            output_path=f"{output_dir}/{sheet_name}/inspection_report.md",
+        )
 
-    print("\nInspection report saved to generated/inspection_report.md")
+        print(
+            f"\nInspection report saved to "
+            f"{output_dir}/{sheet_name}/inspection_report.md"
+        )
