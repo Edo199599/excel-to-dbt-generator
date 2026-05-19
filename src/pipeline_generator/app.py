@@ -1,9 +1,9 @@
-from parsers.excel_inspector import (
+from pipeline_generator.parsers.excel_inspector import (
     inspect_sheet,
     inspect_workbook,
 )
 
-from reports.inspection_report import (
+from pipeline_generator.reports.inspection_report import (
     build_inspection_report,
     save_text_report,
 )
